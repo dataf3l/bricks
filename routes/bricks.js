@@ -39,18 +39,50 @@ function table(data){
   dx += "</table>";
   return dx;
 }
-
+function removeStrangeChars(unsafeInput){
+  return unsafeInput.replace("'","");
+}
 /* GET users listing. */
 router.get('/', function(req, res, next) {
-  let fileName = req.query.brickid + ".brick";
-  let filePath = path.join(__dirname,'..',"bricks", fileName);
+  let fileName = removeStrangeChars(req.query.brickid);
+  let filePath = path.join(__dirname,'..',"bricks", fileName+".brick");
   console.log(filePath)
   fs.readFile(filePath, {encoding: 'utf-8'}, function(err,data){
-    if (!err) {
-           
-     let brick = JSON.parse(data);
-     //res.write(brick.q);
+    if (!err) {     
      res.writeHead(200, {'Content-Type': 'text/html'});
+
+     let brick = JSON.parse(data);
+     let formFields = [];
+     if(brick.q.indexOf("@")!=-1){
+       //interpolate
+        let re = new RegExp("@\\w+","gi"); // a @b c -> "@b"
+        let variableList = brick.q.match(re);
+        for(let variableName of variableList){
+          let vname = variableName.replace("@","");
+          if(vname in req.query){
+            brick.q = brick.q.replace(variableName,removeStrangeChars(req.query[vname]));
+          }else{
+            formFields.push(vname);
+          }
+        }
+        //are there any fields?
+        if(formFields.length >=1){
+          //show form
+          var dx = "<form method=GET style='padding:20px;margin:20px;border:1px dotted black'>\n"
+          for(var field of formFields){
+            let theField = "<input type=text name='"+field+"' value='' />\n"
+            dx += "<label>" + ucwords(field.replace("_"," "))+"<br/>"+theField+"</label>\n<br/><br/>"
+          }
+          dx += "<input type=hidden name=brickid value='"+fileName+"' />";
+          dx += "<input type=submit value=Send name=_submit />";
+          dx += "</form>";
+          res.write(dx);
+          res.end();
+          return;
+          //and exit.
+        }
+     }
+
 
      const client = new Client({
        user: 'postgres',
